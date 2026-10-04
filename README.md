@@ -6,6 +6,7 @@ CLI de scaffolding para proyectos **Node.js + TypeScript** con **Clean Architect
 npm install -g jagg-cli
 
 jg g clean      # estructura de carpetas
+jg g express    # servidor Express 5 + TypeScript listo para usar
 jg g env        # validador de variables de entorno (Zod)
 jg g redis      # cache Redis + servicio docker
 jg g prisma     # ORM Prisma + Postgres en docker
@@ -44,6 +45,7 @@ Ejecutar dos veces el mismo generador es seguro: los archivos existentes se salt
 | Generador | Qué genera | Dependencias | Docker |
 |---|---|---|---|
 | `clean` | Estructura de carpetas Clean Architecture | — | — |
+| `express` | Servidor Express 5, `tsconfig`, scripts dev/build/start, manejo de errores | `express`, `cors`, `helmet`, `typescript`, `tsx`, `tsup` | `Dockerfile` |
 | `env` | Validador de env estilo [env-var](https://www.npmjs.com/package/env-var) con adapter Zod | `zod` | — |
 | `redis` | Contrato de cache, servicio, cliente singleton | `ioredis` | `redis:7-alpine` |
 | `postgres` | Config y `Pool` singleton | `pg` | `postgres:16-alpine` |
@@ -54,7 +56,7 @@ Ejecutar dos veces el mismo generador es seguro: los archivos existentes se salt
 | `repository <Nombre> --orm prisma\|drizzle` | Contrato + mapper + repositorio con el ORM | — | — |
 | `usecase <nombre>` | Caso de uso | — | — |
 
-`prisma`, `drizzle` y `repository --orm` requieren la estructura `clean`.
+`express`, `prisma`, `drizzle` y `repository --orm` requieren la estructura `clean`.
 
 ### `jg g clean`
 
@@ -73,6 +75,41 @@ src/
 ```
 
 El dominio solo contiene contratos (interfaces) para invertir dependencias; la infraestructura los implementa. Una vez creada esta estructura, el resto de los generadores escribe en ella automáticamente.
+
+### `jg g express`
+
+Deja un proyecto nuevo listo para arrancar:
+
+```
+tsconfig.json          # estricto, module Preserve + moduleResolution Bundler
+tsup.config.ts         # build a dist/main.js (ESM)
+Dockerfile             # multi-stage, usuario no root
+.dockerignore  .gitignore
+src/
+├── load-env.ts        # carga .env antes que cualquier config
+├── main.ts            # arranque + cierre ordenado (SIGINT/SIGTERM)
+└── presentation/http/
+    ├── app.ts         # helmet, cors, JSON, rutas, 404 y errores
+    ├── routes/        # index.ts + health.routes.ts (GET /api/health)
+    ├── errors/        # HttpError.badRequest(), .notFound(), ...
+    └── middlewares/   # not-found.ts, error-handler.ts
+```
+
+Agrega `"type": "module"` a `package.json` y los scripts:
+
+| Script | Comando |
+|---|---|
+| `npm run dev` | `tsx watch src/main.ts` (recarga al guardar) |
+| `npm run build` | `tsup` |
+| `npm start` | `node dist/main.js` |
+| `npm run typecheck` | `tsc --noEmit` |
+
+Con `jg g env` previo, el puerto y `NODE_ENV` se leen validados desde `appConfig`. Las rutas lanzan `HttpError` y el manejador central responde con el status y un JSON `{ error, details }`.
+
+```bash
+jg g clean && jg g express
+npm run dev     # http://localhost:3000/api/health
+```
 
 ### `jg g env`
 

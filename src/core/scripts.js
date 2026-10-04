@@ -25,6 +25,33 @@ export function addScripts(cwd, scripts, { dryRun }) {
   return added;
 }
 
+/** Fija campos de primer nivel (ej. "type") y devuelve { campo: { before, after } } de los que cambiaron. */
+export function setFields(cwd, fields, { dryRun }) {
+  const data = readPackage(cwd);
+  const changed = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (data.pkg[key] === value) continue;
+    changed[key] = { before: data.pkg[key] ?? null, after: value };
+    data.pkg[key] = value;
+  }
+  if (Object.keys(changed).length > 0 && !dryRun) savePackage(data);
+  return changed;
+}
+
+/** Restaura los campos que siguen con el valor que puso jg. */
+export function restoreFields(cwd, fields, { dryRun }) {
+  const data = readPackage(cwd);
+  const restored = Object.keys(fields).filter((key) => data.pkg[key] === fields[key].after);
+  if (restored.length > 0 && !dryRun) {
+    for (const key of restored) {
+      if (fields[key].before === null) delete data.pkg[key];
+      else data.pkg[key] = fields[key].before;
+    }
+    savePackage(data);
+  }
+  return restored;
+}
+
 /** Quita solo los scripts que siguen teniendo el valor que agregó jg. */
 export function removeScripts(cwd, scripts, { dryRun }) {
   const data = readPackage(cwd);

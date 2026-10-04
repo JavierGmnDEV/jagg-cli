@@ -8,7 +8,7 @@ import { pushHistory } from './history.js';
 import { log } from './logger.js';
 import { buildNames } from './names.js';
 import { detectPackageManager, installPackages } from './packages.js';
-import { addScripts } from './scripts.js';
+import { addScripts, setFields } from './scripts.js';
 import { render, renderTemplate } from './template.js';
 import { createTracker } from './tracker.js';
 
@@ -81,7 +81,7 @@ export async function runGenerator(gen, opts) {
   ]
     .filter(Boolean)
     .join(' ');
-  const state = { installed: [], scripts: {}, pm: undefined };
+  const state = { installed: [], scripts: {}, fields: {}, pm: undefined };
 
   log.title(`jg ${command}${opts.dryRun ? ' (dry-run)' : ''}`);
 
@@ -90,7 +90,10 @@ export async function runGenerator(gen, opts) {
   } finally {
     // También si falló a mitad de camino: lo que sí se escribió debe poder deshacerse
     const hasChanges =
-      tracker.files.length > 0 || state.installed.length > 0 || Object.keys(state.scripts).length > 0;
+      tracker.files.length > 0 ||
+      state.installed.length > 0 ||
+      Object.keys(state.scripts).length > 0 ||
+      Object.keys(state.fields).length > 0;
     if (!opts.dryRun && hasChanges) {
       pushHistory(cwd, {
         command,
@@ -99,6 +102,7 @@ export async function runGenerator(gen, opts) {
         dirs: tracker.dirs,
         packages: state.installed,
         scripts: state.scripts,
+        fields: state.fields,
         pm: state.pm,
       });
     }
@@ -150,14 +154,23 @@ function applyPlan({ cwd, gen, plan, ctx, opts, config, tracker, state }) {
     if (result.error) log.warn(result.error);
   }
 
-  if (plan.scripts) {
-    if (existsSync(join(cwd, 'package.json'))) {
-      state.scripts = addScripts(cwd, plan.scripts, opts);
-      for (const name of Object.keys(plan.scripts)) {
+  if (plan.scripts || plan.packageJson) {
+    if (!existsSync(join(cwd, 'package.json'))) {
+      log.warn('No hay package.json: no se actualizaron scripts ni campos');
+      return;
+    }
+    if (plan.packageJson) {
+      state.fields = setFields(cwd, plan.packageJson, opts);
+      for (const key of Object.keys(plan.packageJson)) {
+        log.status(key in state.fields ? 'updated' : 'skipped', `package.json → ${key}`);
+      }
+    }
+    if (plan.scripts) {
+      const scripts = Object.fromEntries(Object.entries(plan.scripts).map(([k, v]) => [k, render(v, ctx)]));
+      state.scripts = addScripts(cwd, scripts, opts);
+      for (const name of Object.keys(scripts)) {
         log.status(name in state.scripts ? 'updated' : 'skipped', `package.json → scripts.${name}`);
       }
-    } else {
-      log.warn('No hay package.json: no se agregaron scripts');
     }
   }
 }

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { readHistory, writeHistory } from './history.js';
 import { log } from './logger.js';
 import { uninstallPackages } from './packages.js';
-import { removeScripts } from './scripts.js';
+import { removeScripts, restoreFields } from './scripts.js';
 
 const currentContent = (file) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
 
@@ -40,6 +40,12 @@ function revertEntry(cwd, entry, { force, dryRun }) {
   if (entry.scripts && Object.keys(entry.scripts).length > 0) {
     for (const name of removeScripts(cwd, entry.scripts, { dryRun })) {
       log.status('deleted', `package.json → scripts.${name}`);
+    }
+  }
+
+  if (entry.fields && Object.keys(entry.fields).length > 0) {
+    for (const key of restoreFields(cwd, entry.fields, { dryRun })) {
+      log.status('restored', `package.json → ${key}`);
     }
   }
 
