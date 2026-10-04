@@ -12,7 +12,7 @@ export const clean = {
       ...(features.redis ? redisServiceFiles(true) : []),
     ],
     notes: [
-      'Los generadores siguientes (entity, repository, usecase, redis, env, postgres) usarán esta estructura.',
+      'Los demás generadores (env, redis, postgres, prisma, drizzle, entity, repository, usecase) usarán esta estructura.',
       ...(features.redisLegacy
         ? [
             'Redis ya existía con la estructura anterior: domain/redis/ y los archivos\n' +
