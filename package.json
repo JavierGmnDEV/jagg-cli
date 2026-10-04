@@ -1,0 +1,45 @@
+{
+  "name": "jagg-cli",
+  "version": "0.1.0",
+  "description": "CLI de scaffolding con Clean Architecture, adapters y singletons + docker-compose",
+  "keywords": [
+    "cli",
+    "scaffolding",
+    "generator",
+    "clean-architecture",
+    "typescript",
+    "redis",
+    "prisma",
+    "drizzle",
+    "docker-compose"
+  ],
+  "type": "module",
+  "bin": {
+    "jg": "./bin/jg.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "templates"
+  ],
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "start": "node bin/jg.js"
+  },
+  "license": "MIT",
+  "author": "Javier Gimeno (https://github.com/JavierGmnDEV)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JavierGmnDEV/jagg-cli.git"
+  },
+  "homepage": "https://github.com/JavierGmnDEV/jagg-cli#readme",
+  "bugs": {
+    "url": "https://github.com/JavierGmnDEV/jagg-cli/issues"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "yaml": "^2.9.1"
+  }
+}
