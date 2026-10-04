@@ -1,4 +1,3 @@
-import { buildNames } from '../core/names.js';
 import { layout } from './layout.js';
 import { DATABASE_CONFIG, databaseConfigFile, ormDatabase, requireClean } from './shared.js';
 
@@ -9,10 +8,12 @@ const POSTGRES_CLIENT = `${layout(true).data}/postgres/postgres.client.ts`;
 
 export const drizzleTableFile = (kebab) => `${DIR}/schema/${kebab}.schema.ts`;
 
+export const DRIZZLE_USER_SCHEMA = drizzleTableFile('user');
+
 /** Archivo de la tabla + su export en schema/index.ts. */
-export function drizzleTable(schemaFile, vars) {
+export function drizzleTable(schemaFile, vars, template = 'drizzle/table.schema.ts.tpl') {
   return {
-    file: { template: 'drizzle/table.schema.ts.tpl', to: schemaFile, vars },
+    file: { template, to: schemaFile, vars },
     append: {
       to: DRIZZLE_SCHEMA_INDEX,
       template: 'drizzle/schema.export.ts.tpl',
@@ -23,6 +24,9 @@ export function drizzleTable(schemaFile, vars) {
   };
 }
 
+/** Tabla users de ejemplo (name/email/fechas), la misma que usa `jg g user-crud`. */
+export const drizzleUserTable = () => drizzleTable(DRIZZLE_USER_SCHEMA, {}, 'drizzle/user.schema.ts.tpl');
+
 export const drizzle = {
   name: 'drizzle',
   usage: 'drizzle',
@@ -30,7 +34,7 @@ export const drizzle = {
   requiresName: false,
   plan: ({ features, project }) => {
     requireClean(features, 'g drizzle');
-    const user = drizzleTable(drizzleTableFile('user'), buildNames('User'));
+    const user = drizzleUserTable();
     const client = features.postgres
       ? {
           template: 'drizzle/drizzle.client.postgres.ts.tpl',

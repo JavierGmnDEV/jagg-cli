@@ -32,6 +32,8 @@ function detectFeatures(cwd, srcDir) {
     postgres: has('infrastructure/data/postgres/postgres.client.ts'),
     prisma: has('infrastructure/data/prisma/schema.prisma'),
     drizzle: has('infrastructure/data/drizzle/schema/index.ts'),
+    cacheService: has('domain/api/services/cache.service.ts') && has('infrastructure/api/services/cache.provider.ts'),
+    express: has('presentation/http/routes/index.ts'),
   };
 }
 
@@ -42,8 +44,16 @@ function appendTo(cwd, append, ctx, tracker) {
   const current = existsSync(abs) ? readFileSync(abs, 'utf8') : '';
   if (current.includes(render(append.marker, vars))) return { target, status: 'skipped' };
 
-  const separator = current === '' || current.endsWith('\n') ? '' : '\n';
-  tracker.write(abs, `${current}${separator}${renderTemplate(append.template, vars)}`);
+  const content = renderTemplate(append.template, vars);
+  if (append.position === 'imports') {
+    const lines = current.split('\n');
+    const lastImport = lines.findLastIndex((line) => /^import\s.*;\s*$/.test(line));
+    lines.splice(lastImport + 1, 0, content.replace(/\n$/, ''));
+    tracker.write(abs, lines.join('\n'));
+  } else {
+    const separator = current === '' || current.endsWith('\n') ? '' : '\n';
+    tracker.write(abs, `${current}${separator}${content}`);
+  }
   return { target, status: 'updated' };
 }
 
@@ -66,6 +76,10 @@ export async function runGenerator(gen, opts) {
     project: projectName(cwd),
     features: detectFeatures(cwd, srcDir),
     options: opts,
+  };
+  ctx.read = (path) => {
+    const abs = join(cwd, render(path, ctx));
+    return existsSync(abs) ? readFileSync(abs, 'utf8') : null;
   };
   const plan = gen.plan(ctx);
   const tracker = createTracker(cwd, opts);

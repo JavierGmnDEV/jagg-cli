@@ -78,12 +78,15 @@ export const repository = {
   description: 'contrato de repositorio + implementación in-memory o con ORM (crea la entidad si falta)',
   requiresName: true,
   options: [['--orm <orm>', `implementación con ORM: ${ORMS.join(' | ')} (requiere clean)`]],
-  plan: ({ features, options }) => {
+  plan: ({ features, options, pascal }) => {
     const { orm } = options;
     if (orm) {
       if (!ORMS.includes(orm)) throw new Error(`ORM no soportado: "${orm}". Opciones: ${ORMS.join(', ')}`);
       requireClean(features, `g repository --orm ${orm}`);
       if (!features[orm]) throw new Error(`Primero configura el ORM: jg g ${orm}`);
+      if (pascal === 'User') {
+        throw new Error('El modelo User de ejemplo tiene name/email: usa `jg g user-crud` para generar su CRUD');
+      }
     }
 
     const paths = layout(features.clean);

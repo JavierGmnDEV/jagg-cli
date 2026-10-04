@@ -8,4 +8,6 @@ export default defineConfig({
   outDir: 'dist',
   sourcemap: true,
   clean: true,
+  // node_modules se resuelve en runtime: empaquetar dependencias CJS en ESM rompe sus require()
+  skipNodeModulesBundle: true,
 });

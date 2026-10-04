@@ -1,4 +1,3 @@
-import { buildNames } from '../core/names.js';
 import { layout } from './layout.js';
 import { DATABASE_CONFIG, databaseConfigFile, ormDatabase, requireClean } from './shared.js';
 
@@ -13,6 +12,13 @@ export const prismaModel = (vars) => ({
   marker: 'model {{pascal}} {',
   vars,
 });
+
+/** Modelo User de ejemplo (name/email/fechas), el mismo que usa `jg g user-crud`. */
+export const prismaUserModel = {
+  to: PRISMA_SCHEMA,
+  template: 'prisma/user.model.prisma.tpl',
+  marker: 'model User {',
+};
 
 export const prisma = {
   name: 'prisma',
@@ -33,7 +39,7 @@ export const prisma = {
           imports: { generatedImport: PRISMA_GENERATED, databaseConfigImport: DATABASE_CONFIG },
         },
       ],
-      appends: [prismaModel(buildNames('User'))],
+      appends: [prismaUserModel],
       dependencies: ['@prisma/client@^7', '@prisma/adapter-pg@^7'],
       devDependencies: ['prisma@^7'],
       ...ormDatabase(project),

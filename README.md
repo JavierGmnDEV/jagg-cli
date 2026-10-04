@@ -10,6 +10,7 @@ jg g express    # servidor Express 5 + TypeScript listo para usar
 jg g env        # validador de variables de entorno (Zod)
 jg g redis      # cache Redis + servicio docker
 jg g prisma     # ORM Prisma + Postgres en docker
+jg g user-crud  # CRUD de usuarios completo en /api/users
 jg undo         # deshace lo último
 ```
 
@@ -55,8 +56,9 @@ Ejecutar dos veces el mismo generador es seguro: los archivos existentes se salt
 | `repository <Nombre>` | Contrato + implementación in-memory | — | — |
 | `repository <Nombre> --orm prisma\|drizzle` | Contrato + mapper + repositorio con el ORM | — | — |
 | `usecase <nombre>` | Caso de uso | — | — |
+| `user-crud [--orm prisma\|drizzle\|memory]` | CRUD de usuarios: entidad, DTOs, contratos, casos de uso, API (+caché si hay redis) | — | — |
 
-`express`, `prisma`, `drizzle` y `repository --orm` requieren la estructura `clean`.
+`express`, `prisma`, `drizzle` y `repository --orm` requieren la estructura `clean`; `user-crud` requiere `clean` y `express`.
 
 ### `jg g clean`
 
@@ -162,6 +164,39 @@ infrastructure/api/repositories/prisma-product.repository.ts  # implementación
 
 Además agrega `model Product` a `schema.prisma` (o la tabla `products` al schema de Drizzle).
 
+### `jg g user-crud`
+
+Genera un CRUD de usuarios (`id`, `name`, `email` único, `createdAt`, `updatedAt`) recorriendo todas las capas, y lo registra en `/api/users`. Conviene ejecutarlo al final, cuando ya están el ORM y Redis:
+
+```bash
+jg g clean && jg g express && jg g env && jg g redis && jg g prisma
+jg g user-crud
+```
+
+```
+domain/api/
+├── entities/user.entity.ts                  # UserEntity (readonly + static create)
+├── dtos/user/                               # CreateUserDto, UpdateUserDto → [error, dto]
+├── datasources/user.datasource.ts           # contrato (abstract class)
+├── repositories/user.repository.ts          # contrato (abstract class)
+├── errors/user.errors.ts                    # UserNotFoundError, EmailAlreadyInUseError
+└── use-cases/user/                          # create, get-users, get-user-by-id, update, delete
+infrastructure/api/
+├── datasources/prisma-user.datasource.ts    # o drizzle- / in-memory-
+├── mappers/user.mapper.ts                   # fila del ORM → UserEntity
+└── repositories/user.repository.impl.ts     # delega en el datasource
+presentation/http/user/
+├── user.composition.ts                      # composition root: arma el grafo
+├── user.controller.ts                       # errores de dominio → 404 / 409
+└── user.routes.ts
+```
+
+- **Datasource**: el ORM configurado; con Prisma y Drizzle a la vez elige con `--orm`; sin ORM, en memoria.
+- **Caché**: si existe `jg g redis`, los casos de uso aplican cache-aside (`users:all`, `users:<id>`, TTL 60 s) e invalidan en cada escritura. Sin Redis se generan sin caché.
+- **Endpoints**: `POST /`, `GET /`, `GET /:id`, `PATCH /:id` (parcial), `DELETE /:id`. Validación → 400, no existe → 404, email repetido → 409.
+
+Después de generarlo aplica el modelo (`npm run prisma:migrate -- --name users && npm run prisma:generate`, o `drizzle:generate` + `drizzle:migrate`).
+
 ## Deshacer cambios
 
 Cada generación queda registrada en `.jg/history.json` (con su propio `.gitignore`, nunca se commitea).
@@ -196,7 +231,7 @@ El undo borra los archivos creados, restaura los modificados (`docker-compose.ym
 
 ## Agregar un generador
 
-1. Crea las plantillas en `templates/<nombre>/*.tpl`. Variables disponibles: `{{pascal}}`, `{{camel}}`, `{{kebab}}`, `{{snake}}`, `{{pluralCamel}}`, `{{pluralSnake}}`, `{{srcDir}}`, `{{project}}`.
+1. Crea las plantillas en `templates/<nombre>/*.tpl`. Variables disponibles: `{{pascal}}`, `{{camel}}`, `{{kebab}}`, `{{snake}}`, `{{pluralCamel}}`, `{{pluralSnake}}`, `{{srcDir}}`, `{{project}}`. Para variantes usa bloques `{{#if flag}}…{{else}}…{{/if}}` con un `vars: { flag: true }`.
 2. Crea `src/generators/<nombre>.js` con un `plan()` que declare `files`, `dependencies`, `env`, `compose`, `scripts`, etc. Los imports entre archivos se calculan solos con `imports`.
 3. Regístralo en `src/generators/index.js`.
 

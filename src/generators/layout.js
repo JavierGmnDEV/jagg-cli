@@ -22,6 +22,7 @@ export function layout(clean) {
       entities: `${S}/domain/api/entities`,
       repositoryContracts: `${S}/domain/api/repositories`,
       repositories: `${S}/infrastructure/api/repositories`,
+      datasources: `${S}/infrastructure/api/datasources`,
       useCases: `${S}/domain/api/use-cases`,
       serviceContracts: `${S}/domain/api/services`,
       services: `${S}/infrastructure/api/services`,
