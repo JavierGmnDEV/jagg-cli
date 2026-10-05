@@ -1,6 +1,6 @@
 {
   "name": "jagg-cli",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "CLI de scaffolding con Clean Architecture, adapters y singletons + docker-compose",
   "keywords": [
     "cli",
