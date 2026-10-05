@@ -36,6 +36,7 @@ export const datasource = {
     return {
       files: [...target.files, compositionFile(orm, features.cacheService, true)],
       appends: target.appends,
+      run: target.run,
       notes: [
         from === orm
           ? `El composition root ya usaba ${orm}: solo se regeneró`

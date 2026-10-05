@@ -110,7 +110,8 @@ const DATASOURCES = {
     mapperTemplate: 'user.mapper.ts.tpl',
     mapperImports: { generatedImport: PRISMA_GENERATED },
     datasourceImports: { generatedImport: PRISMA_GENERATED },
-    note: 'Aplica el modelo: npm run prisma:migrate -- --name users && npm run prisma:generate',
+    run: ['prisma:generate'],
+    note: 'Aplica el modelo en la base: npm run prisma:migrate -- --name users (el cliente ya se regeneró)',
   },
   drizzle: {
     class: 'DrizzleUserDatasource',
@@ -206,7 +207,7 @@ export function datasourcePlan(orm) {
     },
   });
 
-  return { files, appends, note: ds.note };
+  return { files, appends, run: ds.run ?? [], note: ds.note };
 }
 
 /** El composition root es el único archivo que conoce el datasource concreto. */
@@ -321,6 +322,7 @@ export const userCrud = {
         },
         { to: ROUTES_INDEX, template: `${T}/routes.use.ts.tpl`, marker: "routes.use('/users'" },
       ],
+      run: datasource.run,
       notes: [
         `Datasource: ${orm}${cache ? ' · caché Redis activada (TTL 60s)' : ' · sin caché (genera redis antes para activarla)'}`,
         datasource.note,

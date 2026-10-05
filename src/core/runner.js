@@ -7,7 +7,7 @@ import { readJson } from './fs.js';
 import { pushHistory } from './history.js';
 import { log } from './logger.js';
 import { buildNames } from './names.js';
-import { detectPackageManager, installPackages } from './packages.js';
+import { detectPackageManager, installPackages, runScript } from './packages.js';
 import { addScripts, setFields } from './scripts.js';
 import { render, renderTemplate } from './template.js';
 import { createTracker } from './tracker.js';
@@ -188,6 +188,15 @@ function applyPlan({ cwd, gen, plan, ctx, opts, config, tracker, state }) {
       for (const name of Object.keys(scripts)) {
         log.status(name in state.scripts ? 'updated' : 'skipped', `package.json → scripts.${name}`);
       }
+    }
+  }
+
+  if (plan.run?.length && !opts.skipInstall && !opts.dryRun) {
+    const pm = state.pm ?? detectPackageManager(cwd, config.packageManager);
+    for (const script of plan.run) {
+      log.status('updated', `${pm} run ${script}`);
+      const result = runScript(cwd, pm, script);
+      if (result.error) log.warn(`${result.error}: ejecútalo a mano cuando el proyecto esté listo`);
     }
   }
 }

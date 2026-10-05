@@ -1,6 +1,6 @@
 # jagg-cli
 
-CLI de scaffolding para proyectos **Node.js + TypeScript** con **Clean Architecture**. Con un comando genera los archivos de un servicio (contratos de dominio, adapters, singletons), instala sus dependencias, lo agrega al `docker-compose.yml` y completa el `.env.example`. Todo se puede deshacer.
+CLI de scaffolding para proyectos **Node.js + TypeScript** con **Clean Architecture**. Con un comando genera los archivos de un servicio (contratos de dominio, adapters, singletons), instala sus dependencias, lo agrega al `docker-compose.yml` y completa el `.env.example` y el `.env` (los crea si no existen y nunca pisa valores que ya tengas). Todo se puede deshacer.
 
 ```bash
 npm install -g jagg-cli
@@ -163,9 +163,11 @@ Crean la configuración en `infrastructure/data/`, un modelo/tabla `User` de eje
 ```bash
 docker compose up -d postgres
 
-npm run prisma:migrate -- --name init && npm run prisma:generate   # Prisma
-npm run drizzle:generate && npm run drizzle:migrate                 # Drizzle
+npm run prisma:migrate -- --name init               # Prisma
+npm run drizzle:generate && npm run drizzle:migrate  # Drizzle
 ```
+
+El cliente de Prisma se genera automáticamente al crear Prisma, el CRUD o al cambiar de datasource. Solo hay que volver a ejecutar `npm run prisma:generate` si editas `schema.prisma` a mano.
 
 Luego, un repositorio real:
 
@@ -230,7 +232,7 @@ presentation/http/user/
 - **Caché**: si existe `jg g redis`, los casos de uso aplican cache-aside (`users:all`, `users:<id>`, TTL 60 s) e invalidan en cada escritura. Sin Redis se generan sin caché.
 - **Endpoints**: `POST /`, `GET /`, `GET /:id`, `PATCH /:id` (parcial), `DELETE /:id`. Validación → 400, no existe → 404, email repetido → 409.
 
-Después de generarlo aplica el modelo (`npm run prisma:migrate -- --name users && npm run prisma:generate`, o `drizzle:generate` + `drizzle:migrate`).
+Después de generarlo aplica el modelo (`npm run prisma:migrate -- --name users`, o `drizzle:generate` + `drizzle:migrate`).
 
 ### `jg g datasource user --orm <orm>`
 

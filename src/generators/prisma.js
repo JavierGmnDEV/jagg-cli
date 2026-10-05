@@ -48,11 +48,12 @@ export const prisma = {
         'prisma:migrate': 'prisma migrate dev',
         'prisma:studio': 'prisma studio',
       },
+      run: ['prisma:generate'],
       notes: [
-        'Siguientes pasos:\n' +
+        'Siguientes pasos (el cliente ya está generado):\n' +
           '  docker compose up -d postgres\n' +
           '  npm run prisma:migrate -- --name init\n' +
-          '  npm run prisma:generate',
+          'Si cambias schema.prisma: npm run prisma:generate',
       ],
     };
   },

@@ -52,6 +52,11 @@ export function installPackages(cwd, { dependencies = [], devDependencies = [] }
   return { commands: done, installed: names, error };
 }
 
+export function runScript(cwd, pm, script) {
+  const result = spawnSync(pm, ['run', script], { cwd, stdio: 'inherit' });
+  return result.status === 0 ? {} : { error: `Falló: ${pm} run ${script}` };
+}
+
 export function uninstallPackages(cwd, names, { pm = 'npm', dryRun }) {
   const pkg = readJson(join(cwd, 'package.json'));
   if (!pkg) return { commands: [], error: 'No hay package.json en el directorio actual' };

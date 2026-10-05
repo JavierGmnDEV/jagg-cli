@@ -17,10 +17,7 @@ function appendVars(file, section, vars, write) {
   return content === '' ? 'created' : 'updated';
 }
 
-/** Siempre actualiza .env.example; .env solo si ya existe. */
+/** .env.example (se commitea) y .env (local, ignorado por git): ambos se crean si faltan; nunca se pisan valores existentes. */
 export function addEnvVars(cwd, section, vars, write) {
-  const results = [['.env.example', appendVars(join(cwd, '.env.example'), section, vars, write)]];
-  const envFile = join(cwd, '.env');
-  if (existsSync(envFile)) results.push(['.env', appendVars(envFile, section, vars, write)]);
-  return results;
+  return ['.env.example', '.env'].map((file) => [file, appendVars(join(cwd, file), section, vars, write)]);
 }
