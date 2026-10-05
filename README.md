@@ -11,6 +11,7 @@ jg g env        # validador de variables de entorno (Zod)
 jg g redis      # cache Redis + servicio docker
 jg g prisma     # ORM Prisma + Postgres en docker
 jg g user-crud  # CRUD de usuarios completo en /api/users
+jg g datasource user --orm mongoose   # cambia de base de datos/ORM sin tocar el dominio
 jg undo         # deshace lo último
 ```
 
