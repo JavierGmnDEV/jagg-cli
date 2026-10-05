@@ -20,6 +20,19 @@ jg undo         # deshace lo último
 - Node.js **20.12** o superior
 - Un proyecto con `package.json` (npm, pnpm, yarn o bun; se detecta por el lockfile)
 
+## Empezar un proyecto desde cero
+
+```bash
+mkdir mi-api && cd mi-api
+npm init -y              # jg necesita un package.json
+jg g clean
+jg g express
+jg g user-crud
+npm run dev              # http://localhost:3000/api/users
+```
+
+No hace falta ejecutar `npm install` a mano: cada generador instala sus propias dependencias con el gestor de paquetes del proyecto (por ejemplo, `jg g express` instala `express`, `typescript`, `tsx`...). Si usas `--skip-install`, instálalas tú después con `npm install <paquetes>`; la salida del generador te dice cuáles. Al clonar un proyecto ya generado, basta el `npm install` habitual.
+
 ## Comandos
 
 | Comando | Descripción |
