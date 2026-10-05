@@ -19,7 +19,7 @@
   ],
   "type": "module",
   "bin": {
-    "jg": "./bin/jg.js"
+    "jg": "bin/jg.js"
   },
   "files": [
     "bin",
