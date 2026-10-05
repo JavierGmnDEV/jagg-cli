@@ -3,7 +3,7 @@ import { layout } from './layout.js';
 import { PRISMA_CLIENT, PRISMA_GENERATED, PRISMA_SCHEMA, prismaUserModel } from './prisma.js';
 import { requireClean } from './shared.js';
 
-const ORMS = ['prisma', 'drizzle', 'memory'];
+export const ORMS = ['prisma', 'drizzle', 'memory'];
 const T = 'user-crud';
 const SRC = '{{srcDir}}';
 const paths = layout(true);
@@ -13,7 +13,7 @@ const ENTITY = `${paths.entities}/user.entity.ts`;
 const VALIDATION = `${DOMAIN}/dtos/user/user-validation.ts`;
 const CREATE_DTO = `${DOMAIN}/dtos/user/create-user.dto.ts`;
 const UPDATE_DTO = `${DOMAIN}/dtos/user/update-user.dto.ts`;
-const DATASOURCE = `${DOMAIN}/datasources/user.datasource.ts`;
+export const DATASOURCE = `${DOMAIN}/datasources/user.datasource.ts`;
 const REPOSITORY = `${paths.repositoryContracts}/user.repository.ts`;
 const ERRORS = `${DOMAIN}/errors/user.errors.ts`;
 const USE_CASES = `${paths.useCases}/user`;
@@ -26,7 +26,6 @@ const USE_CASE = {
   delete: `${USE_CASES}/delete-user.use-case.ts`,
 };
 
-const MAPPER = `${paths.mappers}/user.mapper.ts`;
 const REPOSITORY_IMPL = `${paths.repositories}/user.repository.impl.ts`;
 const CACHE_CONTRACT = `${paths.serviceContracts}/cache.service.ts`;
 const CACHE_PROVIDER = `${paths.services}/cache.provider.ts`;
@@ -36,7 +35,7 @@ const ROUTES_INDEX = `${HTTP}/routes/index.ts`;
 const HTTP_ERROR = `${HTTP}/errors/http-error.ts`;
 const PRESENTATION = `${HTTP}/user`;
 const CONTROLLER = `${PRESENTATION}/user.controller.ts`;
-const COMPOSITION = `${PRESENTATION}/user.composition.ts`;
+export const COMPOSITION = `${PRESENTATION}/user.composition.ts`;
 const USER_ROUTES = `${PRESENTATION}/user.routes.ts`;
 
 const USE_CASE_IMPORTS = {
@@ -47,7 +46,7 @@ const USE_CASE_IMPORTS = {
   deleteUseCaseImport: USE_CASE.delete,
 };
 
-function resolveOrm(features, requested) {
+export function resolveOrm(features, requested) {
   if (requested) {
     if (!ORMS.includes(requested)) throw new Error(`ORM no soportado: "${requested}". Opciones: ${ORMS.join(', ')}`);
     if (requested !== 'memory' && !features[requested]) throw new Error(`Primero configura el ORM: jg g ${requested}`);
@@ -78,7 +77,7 @@ function assertCompatible(read, force) {
   }
 }
 
-function assertUserModel(orm, read) {
+export function assertUserModel(orm, read) {
   if (orm === 'prisma') {
     const model = read(PRISMA_SCHEMA)?.match(/model User \{[^}]*\}/)?.[0];
     if (model && !/\bemail\b/.test(model)) {
@@ -99,38 +98,92 @@ function assertUserModel(orm, read) {
   }
 }
 
-function ormPlan(orm) {
-  if (orm === 'prisma') {
-    return {
-      datasource: { file: `${paths.datasources}/prisma-user.datasource.ts`, class: 'PrismaUserDatasource' },
-      args: 'PrismaDatabase.getInstance()',
-      client: PRISMA_CLIENT,
-      mapperImports: { generatedImport: PRISMA_GENERATED },
-      datasourceImports: { generatedImport: PRISMA_GENERATED },
-      appends: [prismaUserModel],
-      files: [],
-      note: 'Aplica el modelo: npm run prisma:migrate -- --name users && npm run prisma:generate',
-    };
-  }
+const DATASOURCES = {
+  prisma: {
+    class: 'PrismaUserDatasource',
+    args: 'PrismaDatabase.getInstance()',
+    client: PRISMA_CLIENT,
+    mapperImports: { generatedImport: PRISMA_GENERATED },
+    datasourceImports: { generatedImport: PRISMA_GENERATED },
+    note: 'Aplica el modelo: npm run prisma:migrate -- --name users && npm run prisma:generate',
+  },
+  drizzle: {
+    class: 'DrizzleUserDatasource',
+    args: 'DrizzleDatabase.getInstance()',
+    client: DRIZZLE_CLIENT,
+    mapperImports: { schemaImport: DRIZZLE_USER_SCHEMA },
+    datasourceImports: { clientImport: DRIZZLE_CLIENT, schemaImport: DRIZZLE_USER_SCHEMA },
+    note: 'Aplica la tabla: npm run drizzle:generate && npm run drizzle:migrate',
+  },
+  memory: {
+    class: 'InMemoryUserDatasource',
+    args: '',
+    note: 'Datasource en memoria: los usuarios se pierden al reiniciar.',
+  },
+};
+
+const datasourceFile = (orm) =>
+  `${paths.datasources}/${orm === 'memory' ? 'in-memory' : orm}-user.datasource.ts`;
+const mapperFile = (orm) => `${paths.mappers}/${orm}-user.mapper.ts`;
+const ormFlags = (orm) => ({ prisma: orm === 'prisma', drizzle: orm === 'drizzle', memory: orm === 'memory' });
+
+/** Datasource que usa hoy el composition root (por su clase), o null. */
+export function currentDatasource(read) {
+  const match = read(COMPOSITION)?.match(/new (\w+UserDatasource)\(/);
+  return Object.keys(DATASOURCES).find((orm) => DATASOURCES[orm].class === match?.[1]) ?? null;
+}
+
+/** Infraestructura de un datasource: implementación, mapper y modelo/tabla del ORM. Nada de dominio. */
+export function datasourcePlan(orm) {
+  const ds = DATASOURCES[orm];
+  const files = [];
+  const appends = [];
+
+  if (orm === 'prisma') appends.push(prismaUserModel);
   if (orm === 'drizzle') {
     const table = drizzleUserTable();
-    return {
-      datasource: { file: `${paths.datasources}/drizzle-user.datasource.ts`, class: 'DrizzleUserDatasource' },
-      args: 'DrizzleDatabase.getInstance()',
-      client: DRIZZLE_CLIENT,
-      mapperImports: { schemaImport: DRIZZLE_USER_SCHEMA },
-      datasourceImports: { clientImport: DRIZZLE_CLIENT, schemaImport: DRIZZLE_USER_SCHEMA },
-      appends: [table.append],
-      files: [table.file],
-      note: 'Aplica la tabla: npm run drizzle:generate && npm run drizzle:migrate',
-    };
+    files.push(table.file);
+    appends.push(table.append);
   }
+  if (orm !== 'memory') {
+    files.push({
+      template: `${T}/user.mapper.ts.tpl`,
+      to: mapperFile(orm),
+      vars: ormFlags(orm),
+      imports: { entityImport: ENTITY, ...ds.mapperImports },
+    });
+  }
+  files.push({
+    template: `${T}/${datasourceFile(orm).split('/').pop()}.tpl`,
+    to: datasourceFile(orm),
+    imports: {
+      datasourceImport: DATASOURCE,
+      entityImport: ENTITY,
+      errorsImport: ERRORS,
+      ...(orm === 'memory' ? {} : { mapperImport: mapperFile(orm) }),
+      ...ds.datasourceImports,
+    },
+  });
+
+  return { files, appends, note: ds.note };
+}
+
+/** El composition root es el único archivo que conoce el datasource concreto. */
+export function compositionFile(orm, cache, overwrite = false) {
+  const ds = DATASOURCES[orm];
   return {
-    datasource: { file: `${paths.datasources}/in-memory-user.datasource.ts`, class: 'InMemoryUserDatasource' },
-    args: '',
-    appends: [],
-    files: [],
-    note: 'Sin ORM: los usuarios se guardan en memoria. Con `jg g prisma` o `jg g drizzle` y después\n`jg g user-crud --force` pasa a usar la base de datos.',
+    template: `${T}/user.composition.ts.tpl`,
+    to: COMPOSITION,
+    overwrite,
+    vars: { ...ormFlags(orm), cache, datasourceClass: ds.class, datasourceArgs: ds.args },
+    imports: {
+      ...USE_CASE_IMPORTS,
+      datasourceImplImport: datasourceFile(orm),
+      repositoryImplImport: REPOSITORY_IMPL,
+      controllerImport: CONTROLLER,
+      ...(ds.client ? { clientImport: ds.client } : {}),
+      ...(cache ? { cacheProviderImport: CACHE_PROVIDER } : {}),
+    },
   };
 }
 
@@ -149,14 +202,13 @@ export const userCrud = {
     assertUserModel(orm, read);
 
     const cache = features.cacheService;
-    const specific = ormPlan(orm);
-    const flags = { cache, prisma: orm === 'prisma', drizzle: orm === 'drizzle', memory: orm === 'memory' };
+    const datasource = datasourcePlan(orm);
     const cacheVars = cache ? { cacheContract: 'CacheService' } : {};
     const cacheImports = cache ? { cacheImport: CACHE_CONTRACT, cacheKeysImport: CACHE_KEYS } : {};
     const useCaseFile = (template, to, imports) => ({
       template: `${T}/${template}`,
       to,
-      vars: { ...flags, ...cacheVars },
+      vars: { cache, ...cacheVars },
       imports: { entityImport: ENTITY, repositoryImport: REPOSITORY, ...cacheImports, ...imports },
     });
 
@@ -188,28 +240,7 @@ export const userCrud = {
         useCaseFile('delete-user.use-case.ts.tpl', USE_CASE.delete, { errorsImport: ERRORS }),
 
         // infraestructura
-        ...specific.files,
-        ...(orm === 'memory'
-          ? []
-          : [
-              {
-                template: `${T}/user.mapper.ts.tpl`,
-                to: MAPPER,
-                vars: flags,
-                imports: { entityImport: ENTITY, ...specific.mapperImports },
-              },
-            ]),
-        {
-          template: `${T}/${specific.datasource.file.split('/').pop()}.tpl`,
-          to: specific.datasource.file,
-          imports: {
-            datasourceImport: DATASOURCE,
-            entityImport: ENTITY,
-            errorsImport: ERRORS,
-            ...(orm === 'memory' ? {} : { mapperImport: MAPPER }),
-            ...specific.datasourceImports,
-          },
-        },
+        ...datasource.files,
         {
           template: `${T}/user.repository.impl.ts.tpl`,
           to: REPOSITORY_IMPL,
@@ -228,23 +259,11 @@ export const userCrud = {
             ...USE_CASE_IMPORTS,
           },
         },
-        {
-          template: `${T}/user.composition.ts.tpl`,
-          to: COMPOSITION,
-          vars: { ...flags, datasourceClass: specific.datasource.class, datasourceArgs: specific.args },
-          imports: {
-            ...USE_CASE_IMPORTS,
-            datasourceImplImport: specific.datasource.file,
-            repositoryImplImport: REPOSITORY_IMPL,
-            controllerImport: CONTROLLER,
-            ...(specific.client ? { clientImport: specific.client } : {}),
-            ...(cache ? { cacheProviderImport: CACHE_PROVIDER } : {}),
-          },
-        },
+        compositionFile(orm, cache),
         { template: `${T}/user.routes.ts.tpl`, to: USER_ROUTES, imports: { compositionImport: COMPOSITION } },
       ],
       appends: [
-        ...specific.appends,
+        ...datasource.appends,
         {
           to: ROUTES_INDEX,
           template: `${T}/routes.import.ts.tpl`,
@@ -256,9 +275,11 @@ export const userCrud = {
       ],
       notes: [
         `Datasource: ${orm}${cache ? ' · caché Redis activada (TTL 60s)' : ' · sin caché (genera redis antes para activarla)'}`,
-        specific.note,
+        datasource.note,
+        'Para cambiar de datasource sin tocar el dominio: jg g datasource user --orm <prisma|drizzle|memory>',
         'Endpoints en /api/users: POST /, GET /, GET /:id, PATCH /:id, DELETE /:id',
       ],
     };
   },
 };
+

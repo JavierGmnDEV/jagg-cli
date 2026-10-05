@@ -131,7 +131,7 @@ function applyPlan({ cwd, gen, plan, ctx, opts, config, tracker, state }) {
     const target = render(file.to, ctx);
     const abs = join(cwd, target);
     const exists = existsSync(abs);
-    if (exists && !opts.force) {
+    if (exists && !opts.force && !file.overwrite) {
       log.status('skipped', target);
       continue;
     }

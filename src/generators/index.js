@@ -9,5 +9,19 @@ import { entity } from './entity.js';
 import { repository } from './repository.js';
 import { usecase } from './usecase.js';
 import { userCrud } from './user-crud.js';
+import { datasource } from './datasource.js';
 
-export const generators = [clean, express, env, redis, postgres, prisma, drizzle, entity, repository, usecase, userCrud];
+export const generators = [
+  clean,
+  express,
+  env,
+  redis,
+  postgres,
+  prisma,
+  drizzle,
+  entity,
+  repository,
+  usecase,
+  userCrud,
+  datasource,
+];

@@ -57,6 +57,7 @@ Ejecutar dos veces el mismo generador es seguro: los archivos existentes se salt
 | `repository <Nombre> --orm prisma\|drizzle` | Contrato + mapper + repositorio con el ORM | — | — |
 | `usecase <nombre>` | Caso de uso | — | — |
 | `user-crud [--orm prisma\|drizzle\|memory]` | CRUD de usuarios: entidad, DTOs, contratos, casos de uso, API (+caché si hay redis) | — | — |
+| `datasource user --orm prisma\|drizzle\|memory` | Cambia el datasource del CRUD sin tocar el dominio | — | — |
 
 `express`, `prisma`, `drizzle` y `repository --orm` requieren la estructura `clean`; `user-crud` requiere `clean` y `express`.
 
@@ -183,7 +184,7 @@ domain/api/
 └── use-cases/user/                          # create, get-users, get-user-by-id, update, delete
 infrastructure/api/
 ├── datasources/prisma-user.datasource.ts    # o drizzle- / in-memory-
-├── mappers/user.mapper.ts                   # fila del ORM → UserEntity
+├── mappers/prisma-user.mapper.ts            # fila del ORM → UserEntity
 └── repositories/user.repository.impl.ts     # delega en el datasource
 presentation/http/user/
 ├── user.composition.ts                      # composition root: arma el grafo
@@ -196,6 +197,23 @@ presentation/http/user/
 - **Endpoints**: `POST /`, `GET /`, `GET /:id`, `PATCH /:id` (parcial), `DELETE /:id`. Validación → 400, no existe → 404, email repetido → 409.
 
 Después de generarlo aplica el modelo (`npm run prisma:migrate -- --name users && npm run prisma:generate`, o `drizzle:generate` + `drizzle:migrate`).
+
+### `jg g datasource user --orm <orm>`
+
+Intercambia la base de datos del CRUD en un comando. El dominio solo conoce el contrato `UserDatasource`, así que el cambio queda en infraestructura:
+
+```bash
+jg g datasource user --orm drizzle   # prisma → drizzle
+jg g datasource user --orm memory    # para tests o demos
+jg g datasource user --orm prisma    # vuelta atrás instantánea
+```
+
+- Crea `infrastructure/api/datasources/<orm>-user.datasource.ts` y su mapper (y el modelo/tabla si faltan). Si ya existían, los reutiliza.
+- Reescribe solo `presentation/http/user/user.composition.ts`, el composition root, que es el único archivo que nombra la clase concreta.
+- Entidad, DTOs, contratos, casos de uso, caché, controller y rutas no cambian.
+- Los datasources anteriores se conservan; `jg undo` restaura el composition root previo.
+
+El ORM destino tiene que estar configurado (`jg g prisma` / `jg g drizzle`). Si editaste el composition root a mano, el cambio lo regenera (lo anterior se recupera con `jg undo`).
 
 ## Deshacer cambios
 
