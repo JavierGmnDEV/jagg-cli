@@ -8,6 +8,9 @@ import { drizzle } from './drizzle.js';
 import { entity } from './entity.js';
 import { repository } from './repository.js';
 import { usecase } from './usecase.js';
+import { typeorm } from './typeorm.js';
+import { sequelize } from './sequelize.js';
+import { mongoose } from './mongoose.js';
 import { userCrud } from './user-crud.js';
 import { datasource } from './datasource.js';
 
@@ -19,6 +22,9 @@ export const generators = [
   postgres,
   prisma,
   drizzle,
+  typeorm,
+  sequelize,
+  mongoose,
   entity,
   repository,
   usecase,

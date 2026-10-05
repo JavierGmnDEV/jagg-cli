@@ -1,9 +1,13 @@
 import { DRIZZLE_CLIENT, DRIZZLE_USER_SCHEMA, drizzleUserTable } from './drizzle.js';
 import { layout } from './layout.js';
+import { MONGOOSE_CLIENT, MONGOOSE_USER_MODEL, mongooseUserModel } from './mongoose.js';
 import { PRISMA_CLIENT, PRISMA_GENERATED, PRISMA_SCHEMA, prismaUserModel } from './prisma.js';
+import { SEQUELIZE_CLIENT, SEQUELIZE_USER_MODEL, sequelizeUserModel } from './sequelize.js';
 import { requireClean } from './shared.js';
+import { TYPEORM_CLIENT, TYPEORM_USER_SCHEMA, typeormUserSchema } from './typeorm.js';
 
-export const ORMS = ['prisma', 'drizzle', 'memory'];
+const REAL_ORMS = ['prisma', 'drizzle', 'typeorm', 'sequelize', 'mongoose'];
+export const ORMS = [...REAL_ORMS, 'memory'];
 const T = 'user-crud';
 const SRC = '{{srcDir}}';
 const paths = layout(true);
@@ -52,12 +56,11 @@ export function resolveOrm(features, requested) {
     if (requested !== 'memory' && !features[requested]) throw new Error(`Primero configura el ORM: jg g ${requested}`);
     return requested;
   }
-  if (features.prisma && features.drizzle) {
-    throw new Error('Hay Prisma y Drizzle configurados: elige uno con --orm prisma | --orm drizzle');
+  const configured = REAL_ORMS.filter((orm) => features[orm]);
+  if (configured.length > 1) {
+    throw new Error(`Hay varios ORMs configurados (${configured.join(', ')}): elige uno con --orm <orm>`);
   }
-  if (features.prisma) return 'prisma';
-  if (features.drizzle) return 'drizzle';
-  return 'memory';
+  return configured[0] ?? 'memory';
 }
 
 /** Archivos previos con el mismo nombre pero otra forma (p. ej. `jg g entity User`) romperían el CRUD. */
@@ -103,6 +106,8 @@ const DATASOURCES = {
     class: 'PrismaUserDatasource',
     args: 'PrismaDatabase.getInstance()',
     client: PRISMA_CLIENT,
+    clientClass: 'PrismaDatabase',
+    mapperTemplate: 'user.mapper.ts.tpl',
     mapperImports: { generatedImport: PRISMA_GENERATED },
     datasourceImports: { generatedImport: PRISMA_GENERATED },
     note: 'Aplica el modelo: npm run prisma:migrate -- --name users && npm run prisma:generate',
@@ -111,9 +116,44 @@ const DATASOURCES = {
     class: 'DrizzleUserDatasource',
     args: 'DrizzleDatabase.getInstance()',
     client: DRIZZLE_CLIENT,
+    clientClass: 'DrizzleDatabase',
+    mapperTemplate: 'user.mapper.ts.tpl',
     mapperImports: { schemaImport: DRIZZLE_USER_SCHEMA },
     datasourceImports: { clientImport: DRIZZLE_CLIENT, schemaImport: DRIZZLE_USER_SCHEMA },
     note: 'Aplica la tabla: npm run drizzle:generate && npm run drizzle:migrate',
+  },
+  typeorm: {
+    class: 'TypeOrmUserDatasource',
+    args: '() => TypeOrmDatabase.getInstance()',
+    client: TYPEORM_CLIENT,
+    clientClass: 'TypeOrmDatabase',
+    mapperTemplate: 'typeorm-user.mapper.ts.tpl',
+    model: typeormUserSchema,
+    mapperImports: { schemaImport: TYPEORM_USER_SCHEMA },
+    datasourceImports: { schemaImport: TYPEORM_USER_SCHEMA },
+    note: 'Aplica la tabla: npm run typeorm:generate && npm run typeorm:migrate',
+  },
+  sequelize: {
+    class: 'SequelizeUserDatasource',
+    args: 'SequelizeDatabase.getInstance()',
+    client: SEQUELIZE_CLIENT,
+    clientClass: 'SequelizeDatabase',
+    mapperTemplate: 'sequelize-user.mapper.ts.tpl',
+    model: sequelizeUserModel,
+    mapperImports: { schemaImport: SEQUELIZE_USER_MODEL },
+    datasourceImports: { schemaImport: SEQUELIZE_USER_MODEL },
+    note: 'Crea la tabla: npm run sequelize:sync',
+  },
+  mongoose: {
+    class: 'MongooseUserDatasource',
+    args: 'MongooseDatabase.getInstance()',
+    client: MONGOOSE_CLIENT,
+    clientClass: 'MongooseDatabase',
+    mapperTemplate: 'mongoose-user.mapper.ts.tpl',
+    model: mongooseUserModel,
+    mapperImports: { schemaImport: MONGOOSE_USER_MODEL },
+    datasourceImports: { schemaImport: MONGOOSE_USER_MODEL },
+    note: 'MongoDB: los ids son ObjectId (24 hex). Si usas caché, vacíala al cambiar de base: los ids cacheados no existen en la otra.',
   },
   memory: {
     class: 'InMemoryUserDatasource',
@@ -145,9 +185,10 @@ export function datasourcePlan(orm) {
     files.push(table.file);
     appends.push(table.append);
   }
+  if (ds.model) files.push(ds.model);
   if (orm !== 'memory') {
     files.push({
-      template: `${T}/user.mapper.ts.tpl`,
+      template: `${T}/${ds.mapperTemplate}`,
       to: mapperFile(orm),
       vars: ormFlags(orm),
       imports: { entityImport: ENTITY, ...ds.mapperImports },
@@ -175,7 +216,14 @@ export function compositionFile(orm, cache, overwrite = false) {
     template: `${T}/user.composition.ts.tpl`,
     to: COMPOSITION,
     overwrite,
-    vars: { ...ormFlags(orm), cache, datasourceClass: ds.class, datasourceArgs: ds.args },
+    vars: {
+      ...ormFlags(orm),
+      cache,
+      hasClient: Boolean(ds.client),
+      clientClass: ds.clientClass ?? '',
+      datasourceClass: ds.class,
+      datasourceArgs: ds.args,
+    },
     imports: {
       ...USE_CASE_IMPORTS,
       datasourceImplImport: datasourceFile(orm),
@@ -276,7 +324,7 @@ export const userCrud = {
       notes: [
         `Datasource: ${orm}${cache ? ' · caché Redis activada (TTL 60s)' : ' · sin caché (genera redis antes para activarla)'}`,
         datasource.note,
-        'Para cambiar de datasource sin tocar el dominio: jg g datasource user --orm <prisma|drizzle|memory>',
+        `Para cambiar de datasource sin tocar el dominio: jg g datasource user --orm <${ORMS.join('|')}>`,
         'Endpoints en /api/users: POST /, GET /, GET /:id, PATCH /:id, DELETE /:id',
       ],
     };

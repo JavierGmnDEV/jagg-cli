@@ -4,11 +4,8 @@ import { GetUserByIdUseCase } from '{{getByIdUseCaseImport}}';
 import { GetUsersUseCase } from '{{getAllUseCaseImport}}';
 import { UpdateUserUseCase } from '{{updateUseCaseImport}}';
 import { {{datasourceClass}} } from '{{datasourceImplImport}}';
-{{#if prisma}}
-import { PrismaDatabase } from '{{clientImport}}';
-{{/if}}
-{{#if drizzle}}
-import { DrizzleDatabase } from '{{clientImport}}';
+{{#if hasClient}}
+import { {{clientClass}} } from '{{clientImport}}';
 {{/if}}
 import { UserRepositoryImpl } from '{{repositoryImplImport}}';
 {{#if cache}}

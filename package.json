@@ -11,7 +11,11 @@
     "redis",
     "prisma",
     "drizzle",
-    "docker-compose"
+    "docker-compose",
+    "typeorm",
+    "sequelize",
+    "mongoose",
+    "mongodb"
   ],
   "type": "module",
   "bin": {

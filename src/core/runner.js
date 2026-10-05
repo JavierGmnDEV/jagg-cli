@@ -32,6 +32,9 @@ function detectFeatures(cwd, srcDir) {
     postgres: has('infrastructure/data/postgres/postgres.client.ts'),
     prisma: has('infrastructure/data/prisma/schema.prisma'),
     drizzle: has('infrastructure/data/drizzle/schema/index.ts'),
+    typeorm: has('infrastructure/data/typeorm/typeorm.client.ts'),
+    sequelize: has('infrastructure/data/sequelize/sequelize.client.ts'),
+    mongoose: has('infrastructure/data/mongoose/mongoose.client.ts'),
     cacheService: has('domain/api/services/cache.service.ts') && has('infrastructure/api/services/cache.provider.ts'),
     express: has('presentation/http/routes/index.ts'),
   };

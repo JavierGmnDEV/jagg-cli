@@ -52,14 +52,17 @@ Ejecutar dos veces el mismo generador es seguro: los archivos existentes se salt
 | `postgres` | Config y `Pool` singleton | `pg` | `postgres:16-alpine` |
 | `prisma` | Schema, cliente singleton, scripts | `@prisma/client`, `@prisma/adapter-pg`, `prisma` | `postgres:16-alpine` |
 | `drizzle` | Schema, cliente singleton, scripts | `drizzle-orm`, `pg`, `drizzle-kit` | `postgres:16-alpine` |
+| `typeorm` | DataSource con `EntitySchema`, singleton, migraciones | `typeorm`, `pg` | `postgres:16-alpine` |
+| `sequelize` | Modelos con `Model.init`, singleton, `sequelize:sync` | `sequelize`, `pg`, `pg-hstore` | `postgres:16-alpine` |
+| `mongoose` | Conexión singleton, modelo `User` | `mongoose` | `mongo:7` |
 | `entity <Nombre>` | Entidad de dominio | — | — |
 | `repository <Nombre>` | Contrato + implementación in-memory | — | — |
 | `repository <Nombre> --orm prisma\|drizzle` | Contrato + mapper + repositorio con el ORM | — | — |
 | `usecase <nombre>` | Caso de uso | — | — |
-| `user-crud [--orm prisma\|drizzle\|memory]` | CRUD de usuarios: entidad, DTOs, contratos, casos de uso, API (+caché si hay redis) | — | — |
-| `datasource user --orm prisma\|drizzle\|memory` | Cambia el datasource del CRUD sin tocar el dominio | — | — |
+| `user-crud [--orm <orm>]` | CRUD de usuarios: entidad, DTOs, contratos, casos de uso, API (+caché si hay redis) | — | — |
+| `datasource user --orm <orm>` | Cambia el datasource del CRUD sin tocar el dominio | — | — |
 
-`express`, `prisma`, `drizzle` y `repository --orm` requieren la estructura `clean`; `user-crud` requiere `clean` y `express`.
+Los ORMs (`prisma`, `drizzle`, `typeorm`, `sequelize`, `mongoose`), `express` y `repository --orm` requieren la estructura `clean`; `user-crud` requiere `clean` y `express`. Donde aparece `<orm>` vale `prisma`, `drizzle`, `typeorm`, `sequelize`, `mongoose` o `memory`.
 
 ### `jg g clean`
 
@@ -127,7 +130,7 @@ const mode = env.get('NODE_ENV').required().asEnum(['development', 'production']
 
 Métodos: `asString`, `asInt`, `asFloat`, `asPort`, `asBool`, `asUrl`, `asEmail`, `asEnum`, `asArray`, `asJson<T>()`. Sin `.required()` ni `.default()` el tipo incluye `undefined`. Un valor inválido lanza `EnvValidationError` al arrancar.
 
-Si `env` existe, `redis`, `postgres`, `prisma` y `drizzle` validan su configuración con él.
+Si `env` existe, `redis`, `postgres` y los ORMs validan su configuración con él.
 
 ### `jg g redis`
 
@@ -165,6 +168,23 @@ infrastructure/api/repositories/prisma-product.repository.ts  # implementación
 
 Además agrega `model Product` a `schema.prisma` (o la tabla `products` al schema de Drizzle).
 
+### `jg g typeorm` / `jg g sequelize` / `jg g mongoose`
+
+Misma idea que Prisma y Drizzle: configuración en `infrastructure/data/<orm>/`, cliente singleton, modelo `User` de ejemplo y base de datos en docker. Ninguno usa decoradores (tsx y tsup compilan con esbuild, que no emite metadata), así que el modelo de persistencia queda en infraestructura:
+
+| ORM | Modelo | Tablas / colecciones |
+|---|---|---|
+| TypeORM 1.x | `EntitySchema` en `entities/user.schema.ts` | `npm run typeorm:generate && npm run typeorm:migrate` (migraciones JS ESM) |
+| Sequelize 6 | `Model.init` en `models/user.model.ts` | `npm run sequelize:sync` (desarrollo; en producción, migraciones) |
+| Mongoose 9 | `Schema` en `models/user.model.ts` | No hacen falta: colección e índice se crean al usarse |
+
+```bash
+docker compose up -d postgres   # TypeORM / Sequelize
+docker compose up -d mongo      # Mongoose (MONGO_URL en .env)
+```
+
+`repository --orm` sigue soportando solo Prisma y Drizzle; los cinco ORMs funcionan con `user-crud` y `datasource`.
+
 ### `jg g user-crud`
 
 Genera un CRUD de usuarios (`id`, `name`, `email` único, `createdAt`, `updatedAt`) recorriendo todas las capas, y lo registra en `/api/users`. Conviene ejecutarlo al final, cuando ya están el ORM y Redis:
@@ -183,7 +203,7 @@ domain/api/
 ├── errors/user.errors.ts                    # UserNotFoundError, EmailAlreadyInUseError
 └── use-cases/user/                          # create, get-users, get-user-by-id, update, delete
 infrastructure/api/
-├── datasources/prisma-user.datasource.ts    # o drizzle- / in-memory-
+├── datasources/prisma-user.datasource.ts    # o drizzle- / typeorm- / sequelize- / mongoose- / in-memory-
 ├── mappers/prisma-user.mapper.ts            # fila del ORM → UserEntity
 └── repositories/user.repository.impl.ts     # delega en el datasource
 presentation/http/user/
@@ -192,7 +212,7 @@ presentation/http/user/
 └── user.routes.ts
 ```
 
-- **Datasource**: el ORM configurado; con Prisma y Drizzle a la vez elige con `--orm`; sin ORM, en memoria.
+- **Datasource**: el ORM configurado; si hay varios, elige con `--orm`; sin ORM, en memoria.
 - **Caché**: si existe `jg g redis`, los casos de uso aplican cache-aside (`users:all`, `users:<id>`, TTL 60 s) e invalidan en cada escritura. Sin Redis se generan sin caché.
 - **Endpoints**: `POST /`, `GET /`, `GET /:id`, `PATCH /:id` (parcial), `DELETE /:id`. Validación → 400, no existe → 404, email repetido → 409.
 
@@ -204,6 +224,7 @@ Intercambia la base de datos del CRUD en un comando. El dominio solo conoce el c
 
 ```bash
 jg g datasource user --orm drizzle   # prisma → drizzle
+jg g datasource user --orm mongoose  # drizzle → MongoDB
 jg g datasource user --orm memory    # para tests o demos
 jg g datasource user --orm prisma    # vuelta atrás instantánea
 ```
@@ -213,7 +234,7 @@ jg g datasource user --orm prisma    # vuelta atrás instantánea
 - Entidad, DTOs, contratos, casos de uso, caché, controller y rutas no cambian.
 - Los datasources anteriores se conservan; `jg undo` restaura el composition root previo.
 
-El ORM destino tiene que estar configurado (`jg g prisma` / `jg g drizzle`). Si editaste el composition root a mano, el cambio lo regenera (lo anterior se recupera con `jg undo`).
+El ORM destino tiene que estar configurado (`jg g <orm>`) y con sus tablas creadas. Al pasar entre Postgres y Mongo cambian los ids (UUID ↔ ObjectId): si usas caché, vacíala. Si editaste el composition root a mano, el cambio lo regenera (lo anterior se recupera con `jg undo`).
 
 ## Deshacer cambios
 
