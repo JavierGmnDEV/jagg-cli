@@ -279,7 +279,14 @@ Cómo queda:
 - `monitoring/`: `prometheus.yml`, datasource y dashboard de Grafana (provisionados, sin configurar nada a mano).
 - `.env`: `METRICS_PATH`, puertos y usuario de Grafana; con `--protect`, `METRICS_TOKEN` (generado, solo en `.env`; en `.env.example` queda vacío).
 
-Con `--protect`, como `prometheus.yml` no lee variables de entorno, la clave también se guarda en `monitoring/prometheus/metrics.token` (añadido al `.gitignore`) y se monta en el contenedor. Prometheus lee la app en `host.docker.internal:<PORT>`: si cambias `PORT`, cámbialo también en `prometheus.yml`.
+Con `--protect`, como `prometheus.yml` no lee variables de entorno, la clave también se guarda en `monitoring/prometheus/metrics.token` (añadido al `.gitignore`) y se monta en el contenedor.
+
+Acceder con la ruta protegida:
+
+- **Prometheus** usa la clave solo; **Grafana** consulta a Prometheus, así que tampoco la necesita.
+- **A mano**: `curl -H "Authorization: Bearer $(cat monitoring/prometheus/metrics.token)" localhost:3000/metrics`. El navegador no envía cabeceras Bearer: para mirar, usa Grafana o Prometheus.
+- **Al clonar el repo** (la clave no se commitea) **o para rotarla**: `npm run metrics:token` genera una nueva y la escribe en `.env` y en `metrics.token`. Sin clave, la app no arranca ("Falta METRICS_TOKEN") en vez de quedar abierta.
+- **En producción**: define `METRICS_TOKEN` en el entorno del servidor y configura tu Prometheus con la misma clave. Prometheus lee la app en `host.docker.internal:<PORT>`: si cambias `PORT`, cámbialo también en `prometheus.yml`.
 
 ## Deshacer cambios
 

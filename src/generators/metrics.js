@@ -16,6 +16,7 @@ const ROUTES = `${HTTP}/metrics/metrics.routes.ts`;
 const PROMETHEUS = 'monitoring/prometheus';
 const GRAFANA = 'monitoring/grafana';
 const TOKEN_FILE = `${PROMETHEUS}/metrics.token`;
+const TOKEN_SCRIPT = `${PROMETHEUS}/metrics-token.mjs`;
 
 const envValue = (content, key) => content?.match(new RegExp(`^${key}=(.*)$`, 'm'))?.[1]?.trim() || undefined;
 
@@ -136,7 +137,12 @@ export const metrics = {
 
         // monitoreo
         { template: `${T}/prometheus.yml.tpl`, to: `${PROMETHEUS}/prometheus.yml`, vars },
-        ...(protect ? [{ content: token, to: TOKEN_FILE }] : []),
+        ...(protect
+          ? [
+              { content: token, to: TOKEN_FILE },
+              { template: `${T}/metrics-token.mjs.tpl`, to: TOKEN_SCRIPT, vars: { tokenFile: TOKEN_FILE } },
+            ]
+          : []),
         { template: `${T}/grafana-datasource.yml.tpl`, to: `${GRAFANA}/provisioning/datasources/prometheus.yml` },
         { template: `${T}/grafana-dashboards.yml.tpl`, to: `${GRAFANA}/provisioning/dashboards/dashboards.yml` },
         { content: dashboardJson(project), to: `${GRAFANA}/dashboards/api.json` },
@@ -169,6 +175,7 @@ export const metrics = {
       },
       compose: compose(protect),
       dependencies: ['@prometheus-io/client'],
+      ...(protect ? { scripts: { 'metrics:token': `node ${TOKEN_SCRIPT}` } } : {}),
       notes: [
         ...(crud.note ? [crud.note] : []),
         'Siguientes pasos:\n' +
@@ -178,6 +185,9 @@ export const metrics = {
           (protect ? '  (curl -H "Authorization: Bearer $METRICS_TOKEN" ...)\n' : '\n') +
           '  Prometheus: http://localhost:9090/targets  (el target debe estar UP)\n' +
           `  Grafana:    http://localhost:3001  (admin / admin) → Dashboards → ${project} · API`,
+        ...(protect
+          ? ['La clave no se commitea: al clonar el repo (o para rotarla) ejecuta npm run metrics:token']
+          : []),
         "Para medir otro caso de uso, en su composition root: measured(new MiCasoDeUso(...), getMetrics(), 'mi_caso')",
       ],
     };
