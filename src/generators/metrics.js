@@ -85,11 +85,14 @@ export const metrics = {
   name: 'metrics',
   usage: 'metrics',
   description:
-    'monitoreo con Prometheus + Grafana: métricas HTTP, de casos de uso y del proceso, con dashboard listo (requiere express)',
+    'monitoreo con Prometheus + Grafana: métricas HTTP, de casos de uso y del proceso, con dashboard listo; --protect exige token (requiere express)',
   requiresName: false,
   options: [
     ['--path <path>', 'ruta de métricas (por defecto: /metrics)'],
-    ['--protect', 'protege la ruta con un token Bearer (se genera solo)'],
+    [
+      '--protect',
+      'protege la ruta con un token Bearer: se genera solo en .env y monitoring/prometheus/metrics.token (no se commitea; al clonar o para rotarlo: npm run metrics:token)',
+    ],
   ],
   plan: ({ features, options, read, project }) => {
     if (!features.express) {
