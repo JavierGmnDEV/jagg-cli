@@ -100,7 +100,9 @@ export async function runGenerator(gen, opts) {
     opts.name,
     ...(gen.options ?? []).map(([flags]) => {
       const flag = flags.match(/--([\w-]+)/)[1];
-      const value = opts[flag.replace(/-(\w)/g, (_, c) => c.toUpperCase())];
+      const negated = flag.startsWith('no-');
+      const value = opts[(negated ? flag.slice(3) : flag).replace(/-(\w)/g, (_, c) => c.toUpperCase())];
+      if (negated) return value === false ? `--${flag}` : undefined;
       if (value === undefined || value === false) return undefined;
       return value === true ? `--${flag}` : `--${flag} ${value}`;
     }),

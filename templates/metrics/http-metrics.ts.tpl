@@ -29,9 +29,11 @@ export function httpMetrics(metrics: MetricsService, metricsPath: string): Reque
     const start = performance.now();
     const routePattern = trackRoute(req);
     res.on('finish', () => {
+      // Un middleware puede fijar la etiqueta (p. ej. load shedding, que responde antes de llegar a una ruta)
+      const route: unknown = res.locals.metricsRoute;
       metrics.recordHttpRequest({
         method: req.method,
-        route: routePattern(),
+        route: typeof route === 'string' ? route : routePattern(),
         statusCode: res.statusCode,
         durationSeconds: (performance.now() - start) / 1000,
       });

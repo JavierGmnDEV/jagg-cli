@@ -76,7 +76,7 @@ Ejecutar dos veces el mismo generador es seguro: los archivos existentes se salt
 | `usecase <nombre>` | Caso de uso | — | — |
 | `user-crud [--orm <orm>]` | CRUD de usuarios: entidad, DTOs, contratos, casos de uso, API (+caché si hay redis) | — | — |
 | `datasource user --orm <orm>` | Cambia el datasource del CRUD sin tocar el dominio | — | — |
-| `metrics [--path] [--protect]` | Métricas HTTP, de casos de uso y del proceso + dashboard de Grafana | `@prometheus-io/client` | `prom/prometheus`, `grafana/grafana` |
+| `metrics [--path] [--protect] [--no-load-shedding]` | Métricas HTTP, de casos de uso y del proceso + dashboard de Grafana + 503 inmediato si se satura | `@prometheus-io/client` | `prom/prometheus`, `grafana/grafana` |
 
 Los ORMs (`prisma`, `drizzle`, `typeorm`, `sequelize`, `mongoose`), `express` y `repository --orm` requieren la estructura `clean`; `user-crud` requiere `clean` y `express`; `metrics` requiere `express`. Donde aparece `<orm>` vale `prisma`, `drizzle`, `typeorm`, `sequelize`, `mongoose` o `memory`.
 
@@ -278,6 +278,8 @@ Cómo queda:
 - Dominio: contrato `MetricsService` y el Decorator `measured`. Infraestructura: `PrometheusMetricsService` (Singleton + Adapter sobre `@prometheus-io/client`) y su provider. Presentación: middleware, ruta y un router que se conecta en `app.ts` como primer middleware. Si cambiaste `app.ts` y no encuentra dónde insertarlo, no lo toca y te dice qué línea añadir.
 - `monitoring/`: `prometheus.yml`, datasource y dashboard de Grafana (provisionados, sin configurar nada a mano).
 - `.env`: `METRICS_PATH`, puertos y usuario de Grafana; con `--protect`, `METRICS_TOKEN` (generado, solo en `.env`; en `.env.example` queda vacío).
+
+**503 inmediato cuando la app se satura (load shedding)**, activado por defecto (`--no-load-shedding` para omitirlo): si el retraso medio del event loop supera `LOAD_SHEDDING_MAX_EVENT_LOOP_DELAY_MS` (50 ms, la CPU no da abasto), responde `503` + `Retry-After` al instante a una parte de las peticiones, que sube de a poco hasta el 90% (nunca todas). `LOAD_SHEDDING_MAX_IN_FLIGHT` limita además las peticiones en curso; viene en `0` (sin límite) porque depende de cada app (capacidad × latencia aceptable): un valor fijo mal elegido rechaza de más cuando el límite es la base de datos. Así las aceptadas no se encolan hasta el timeout. `/metrics` y `/api/health` nunca se rechazan, y los rechazos se ven en el dashboard (ruta `load_shedding`). Ayuda cuanto más cara es cada petición (base de datos, CPU) frente a rechazarla, y cuando los clientes respetan `Retry-After`; con sobrecargas varias veces mayores que la capacidad hace falta escalar (más instancias o un proxy que limite delante).
 
 Con `--protect`, como `prometheus.yml` no lee variables de entorno, la clave también se guarda en `monitoring/prometheus/metrics.token` (añadido al `.gitignore`) y se monta en el contenedor.
 

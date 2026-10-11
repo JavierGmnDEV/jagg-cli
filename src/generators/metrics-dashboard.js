@@ -19,7 +19,7 @@ function panel(title, unit, gridPos, targets) {
 }
 
 /** Dashboard de la API: tráfico, latencia y errores HTTP, casos de uso y proceso Node. */
-export function dashboardJson(job) {
+export function dashboardJson(job, { loadShedding = false } = {}) {
   const j = `job="${job}"`;
   const at = (x, y, w = 12) => ({ x, y, w, h: 8 });
   const panels = [
@@ -50,6 +50,14 @@ export function dashboardJson(job) {
     ]),
     panel('CPU', 'percentunit', at(8, 24, 8), [[`rate(process_cpu_seconds_total{${j}}[1m])`, 'CPU']]),
     panel('Event loop lag p99', 's', at(16, 24, 8), [[`nodejs_eventloop_lag_p99_seconds{${j}}`, 'p99']]),
+    ...(loadShedding
+      ? [
+          panel('Load shedding: aceptadas vs rechazadas (503)', 'reqps', at(0, 32, 24), [
+            [`sum(rate(http_requests_total{${j}, route!="load_shedding"}[1m]))`, 'aceptadas'],
+            [`sum(rate(http_requests_total{${j}, route="load_shedding"}[1m]))`, 'rechazadas'],
+          ]),
+        ]
+      : []),
   ].map((p, i) => ({ id: i + 1, ...p }));
 
   const dashboard = {

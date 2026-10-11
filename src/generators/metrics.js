@@ -13,6 +13,9 @@ const CONFIG = `${SRC}/infrastructure/metrics/metrics.config.ts`;
 const MIDDLEWARE = `${HTTP}/middlewares/http-metrics.ts`;
 const HANDLER = `${HTTP}/metrics/metrics.handler.ts`;
 const ROUTES = `${HTTP}/metrics/metrics.routes.ts`;
+const LOAD_SHEDDING = `${HTTP}/middlewares/load-shedding.ts`;
+const LOAD_SHEDDING_CONFIG = `${SRC}/infrastructure/metrics/load-shedding.config.ts`;
+const HEALTH_PATH = '/api/health';
 const PROMETHEUS = 'monitoring/prometheus';
 const GRAFANA = 'monitoring/grafana';
 const TOKEN_FILE = `${PROMETHEUS}/metrics.token`;
@@ -85,13 +88,17 @@ export const metrics = {
   name: 'metrics',
   usage: 'metrics',
   description:
-    'monitoreo con Prometheus + Grafana: métricas HTTP, de casos de uso y del proceso, con dashboard listo; --protect exige token (requiere express)',
+    'monitoreo con Prometheus + Grafana: métricas HTTP, de casos de uso y del proceso, dashboard listo y 503 inmediato si la app se satura; --protect exige token (requiere express)',
   requiresName: false,
   options: [
     ['--path <path>', 'ruta de métricas (por defecto: /metrics)'],
     [
       '--protect',
       'protege la ruta con un token Bearer: se genera solo en .env y monitoring/prometheus/metrics.token (no se commitea; al clonar o para rotarlo: npm run metrics:token)',
+    ],
+    [
+      '--no-load-shedding',
+      'no rechaza con 503 cuando la app se satura (por defecto sí: umbrales LOAD_SHEDDING_* en .env)',
     ],
   ],
   plan: ({ features, options, read, project }) => {
@@ -106,6 +113,7 @@ export const metrics = {
     const token = protect
       ? (read(TOKEN_FILE)?.trim() || envValue(read('.env'), 'METRICS_TOKEN') || randomBytes(32).toString('hex'))
       : undefined;
+    const loadShedding = options.loadShedding !== false;
     const vars = { metricsPath, protect, appPort };
     const contract = { contractImport: METRICS_CONTRACT };
     const crud = userCrudComposition(features, read);
@@ -122,18 +130,34 @@ export const metrics = {
         features.env
           ? { template: `${T}/metrics.config.env.ts.tpl`, to: CONFIG, vars, imports: { envImport: ENV_PROVIDER } }
           : { template: `${T}/metrics.config.ts.tpl`, to: CONFIG, vars },
+        ...(loadShedding
+          ? [
+              features.env
+                ? {
+                    template: `${T}/load-shedding.config.env.ts.tpl`,
+                    to: LOAD_SHEDDING_CONFIG,
+                    imports: { envImport: ENV_PROVIDER },
+                  }
+                : { template: `${T}/load-shedding.config.ts.tpl`, to: LOAD_SHEDDING_CONFIG },
+            ]
+          : []),
 
         // presentación
         { template: `${T}/http-metrics.ts.tpl`, to: MIDDLEWARE, imports: contract },
         { template: `${T}/metrics.handler.ts.tpl`, to: HANDLER, imports: contract },
+        ...(loadShedding ? [{ template: `${T}/load-shedding.ts.tpl`, to: LOAD_SHEDDING }] : []),
         {
           template: `${T}/metrics.routes.ts.tpl`,
           to: ROUTES,
+          vars: { loadShedding, healthPath: HEALTH_PATH },
           imports: {
             configImport: CONFIG,
             providerImport: METRICS_PROVIDER,
             middlewareImport: MIDDLEWARE,
             handlerImport: HANDLER,
+            ...(loadShedding
+              ? { loadSheddingImport: LOAD_SHEDDING, loadSheddingConfigImport: LOAD_SHEDDING_CONFIG }
+              : {}),
           },
         },
         ...crud.files,
@@ -148,7 +172,7 @@ export const metrics = {
           : []),
         { template: `${T}/grafana-datasource.yml.tpl`, to: `${GRAFANA}/provisioning/datasources/prometheus.yml` },
         { template: `${T}/grafana-dashboards.yml.tpl`, to: `${GRAFANA}/provisioning/dashboards/dashboards.yml` },
-        { content: dashboardJson(project), to: `${GRAFANA}/dashboards/api.json` },
+        { content: dashboardJson(project, { loadShedding }), to: `${GRAFANA}/dashboards/api.json` },
       ],
       appends: [
         {
@@ -175,6 +199,13 @@ export const metrics = {
         GRAFANA_PORT: '3001',
         GRAFANA_ADMIN_USER: 'admin',
         GRAFANA_ADMIN_PASSWORD: 'admin',
+        ...(loadShedding
+          ? {
+              LOAD_SHEDDING_MAX_EVENT_LOOP_DELAY_MS: '50',
+              LOAD_SHEDDING_MAX_IN_FLIGHT: '0',
+              LOAD_SHEDDING_RETRY_AFTER_SECONDS: '1',
+            }
+          : {}),
       },
       compose: compose(protect),
       dependencies: ['@prometheus-io/client'],
@@ -190,6 +221,13 @@ export const metrics = {
           `  Grafana:    http://localhost:3001  (admin / admin) → Dashboards → ${project} · API`,
         ...(protect
           ? ['La clave no se commitea: al clonar el repo (o para rotarla) ejecuta npm run metrics:token']
+          : []),
+        ...(loadShedding
+          ? [
+              'Load shedding: con la CPU saturada (retraso medio del event loop > 50 ms) responde 503 + Retry-After\n' +
+                'al instante a una parte de las peticiones (hasta el 90%). LOAD_SHEDDING_MAX_IN_FLIGHT (0 = sin límite)\n' +
+                'limita además las peticiones en curso: ajústalo a tu app. /metrics y /api/health nunca se rechazan.',
+            ]
           : []),
         "Para medir otro caso de uso, en su composition root: measured(new MiCasoDeUso(...), getMetrics(), 'mi_caso')",
       ],
