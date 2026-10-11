@@ -34,7 +34,7 @@ export const datasource = {
     const target = datasourcePlan(orm);
 
     return {
-      files: [...target.files, compositionFile(orm, features.cacheService, true)],
+      files: [...target.files, compositionFile(orm, { cache: features.cacheService, metrics: features.metrics }, true)],
       appends: target.appends,
       run: target.run,
       notes: [

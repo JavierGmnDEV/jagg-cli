@@ -13,6 +13,7 @@ import { sequelize } from './sequelize.js';
 import { mongoose } from './mongoose.js';
 import { userCrud } from './user-crud.js';
 import { datasource } from './datasource.js';
+import { metrics } from './metrics.js';
 
 export const generators = [
   clean,
@@ -30,4 +31,5 @@ export const generators = [
   usecase,
   userCrud,
   datasource,
+  metrics,
 ];

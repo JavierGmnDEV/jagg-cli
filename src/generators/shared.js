@@ -48,6 +48,10 @@ export const postgresCompose = {
 
 export const DATABASE_CONFIG = `${layout(true).data}/database.config.ts`;
 
+export const METRICS_CONTRACT = `${layout(true).serviceContracts}/metrics.service.ts`;
+export const METRICS_PROVIDER = `${layout(true).services}/metrics.provider.ts`;
+export const MEASURED_USE_CASE = `${layout(true).useCases}/measured.ts`;
+
 /** URL de conexión compartida por los ORMs (validada con env si existe). */
 export function databaseConfigFile(features) {
   return features.env

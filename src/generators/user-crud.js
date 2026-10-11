@@ -3,7 +3,7 @@ import { layout } from './layout.js';
 import { MONGOOSE_CLIENT, MONGOOSE_USER_MODEL, mongooseUserModel } from './mongoose.js';
 import { PRISMA_CLIENT, PRISMA_GENERATED, PRISMA_SCHEMA, prismaUserModel } from './prisma.js';
 import { SEQUELIZE_CLIENT, SEQUELIZE_USER_MODEL, sequelizeUserModel } from './sequelize.js';
-import { requireClean } from './shared.js';
+import { MEASURED_USE_CASE, METRICS_PROVIDER, requireClean } from './shared.js';
 import { TYPEORM_CLIENT, TYPEORM_USER_SCHEMA, typeormUserSchema } from './typeorm.js';
 
 const REAL_ORMS = ['prisma', 'drizzle', 'typeorm', 'sequelize', 'mongoose'];
@@ -210,8 +210,24 @@ export function datasourcePlan(orm) {
   return { files, appends, run: ds.run ?? [], note: ds.note };
 }
 
-/** El composition root es el único archivo que conoce el datasource concreto. */
-export function compositionFile(orm, cache, overwrite = false) {
+const USE_CASE_CLASSES = [
+  ['CreateUserUseCase', 'create_user'],
+  ['GetUsersUseCase', 'get_users'],
+  ['GetUserByIdUseCase', 'get_user_by_id'],
+  ['UpdateUserUseCase', 'update_user'],
+  ['DeleteUserUseCase', 'delete_user'],
+];
+
+function useCaseInstances(cache, metrics) {
+  const deps = cache ? 'repository, cache' : 'repository';
+  return USE_CASE_CLASSES.map(([useCase, name]) => {
+    const instance = `new ${useCase}(${deps})`;
+    return `      ${metrics ? `measured(${instance}, metrics, '${name}')` : instance},`;
+  }).join('\n');
+}
+
+/** El composition root es el único archivo que conoce el datasource concreto (y quién se cachea o se mide). */
+export function compositionFile(orm, { cache = false, metrics = false } = {}, overwrite = false) {
   const ds = DATASOURCES[orm];
   return {
     template: `${T}/user.composition.ts.tpl`,
@@ -220,6 +236,8 @@ export function compositionFile(orm, cache, overwrite = false) {
     vars: {
       ...ormFlags(orm),
       cache,
+      metrics,
+      useCases: useCaseInstances(cache, metrics),
       hasClient: Boolean(ds.client),
       clientClass: ds.clientClass ?? '',
       datasourceClass: ds.class,
@@ -232,6 +250,7 @@ export function compositionFile(orm, cache, overwrite = false) {
       controllerImport: CONTROLLER,
       ...(ds.client ? { clientImport: ds.client } : {}),
       ...(cache ? { cacheProviderImport: CACHE_PROVIDER } : {}),
+      ...(metrics ? { metricsProviderImport: METRICS_PROVIDER, measuredImport: MEASURED_USE_CASE } : {}),
     },
   };
 }
@@ -308,7 +327,7 @@ export const userCrud = {
             ...USE_CASE_IMPORTS,
           },
         },
-        compositionFile(orm, cache),
+        compositionFile(orm, { cache, metrics: features.metrics }),
         { template: `${T}/user.routes.ts.tpl`, to: USER_ROUTES, imports: { compositionImport: COMPOSITION } },
       ],
       appends: [

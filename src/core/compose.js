@@ -36,6 +36,6 @@ export function addComposeService(cwd, { name, service, volumes = [] }, { force 
     if (!doc.hasIn(['volumes', volume])) doc.setIn(['volumes', volume], null);
   }
 
-  write(file, doc.toString({ nullStr: '' }));
+  write(file, doc.toString({ nullStr: '', lineWidth: 0 }));
   return { fileName, status: isNew ? 'created' : 'updated' };
 }

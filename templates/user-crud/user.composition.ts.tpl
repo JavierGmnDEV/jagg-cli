@@ -11,6 +11,10 @@ import { UserRepositoryImpl } from '{{repositoryImplImport}}';
 {{#if cache}}
 import { getCache } from '{{cacheProviderImport}}';
 {{/if}}
+{{#if metrics}}
+import { getMetrics } from '{{metricsProviderImport}}';
+import { measured } from '{{measuredImport}}';
+{{/if}}
 import { UserController } from '{{controllerImport}}';
 
 /** Composition root del módulo: el único sitio que conoce las implementaciones concretas. */
@@ -20,23 +24,13 @@ export class UserComposition {
     const repository = new UserRepositoryImpl(datasource);
 {{#if cache}}
     const cache = getCache();
-
-    return new UserController(
-      new CreateUserUseCase(repository, cache),
-      new GetUsersUseCase(repository, cache),
-      new GetUserByIdUseCase(repository, cache),
-      new UpdateUserUseCase(repository, cache),
-      new DeleteUserUseCase(repository, cache),
-    );
-{{else}}
-
-    return new UserController(
-      new CreateUserUseCase(repository),
-      new GetUsersUseCase(repository),
-      new GetUserByIdUseCase(repository),
-      new UpdateUserUseCase(repository),
-      new DeleteUserUseCase(repository),
-    );
 {{/if}}
+{{#if metrics}}
+    const metrics = getMetrics();
+{{/if}}
+
+    return new UserController(
+{{useCases}}
+    );
   }
 }

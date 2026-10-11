@@ -12,6 +12,7 @@ jg g redis      # cache Redis + servicio docker
 jg g prisma     # ORM Prisma + Postgres en docker
 jg g user-crud  # CRUD de usuarios completo en /api/users
 jg g datasource user --orm mongoose   # cambia de base de datos/ORM sin tocar el dominio
+jg g metrics    # monitoreo con Prometheus + Grafana, dashboard incluido
 jg undo         # deshace lo último
 ```
 
@@ -75,8 +76,9 @@ Ejecutar dos veces el mismo generador es seguro: los archivos existentes se salt
 | `usecase <nombre>` | Caso de uso | — | — |
 | `user-crud [--orm <orm>]` | CRUD de usuarios: entidad, DTOs, contratos, casos de uso, API (+caché si hay redis) | — | — |
 | `datasource user --orm <orm>` | Cambia el datasource del CRUD sin tocar el dominio | — | — |
+| `metrics [--path] [--protect]` | Métricas HTTP, de casos de uso y del proceso + dashboard de Grafana | `@prometheus-io/client` | `prom/prometheus`, `grafana/grafana` |
 
-Los ORMs (`prisma`, `drizzle`, `typeorm`, `sequelize`, `mongoose`), `express` y `repository --orm` requieren la estructura `clean`; `user-crud` requiere `clean` y `express`. Donde aparece `<orm>` vale `prisma`, `drizzle`, `typeorm`, `sequelize`, `mongoose` o `memory`.
+Los ORMs (`prisma`, `drizzle`, `typeorm`, `sequelize`, `mongoose`), `express` y `repository --orm` requieren la estructura `clean`; `user-crud` requiere `clean` y `express`; `metrics` requiere `express`. Donde aparece `<orm>` vale `prisma`, `drizzle`, `typeorm`, `sequelize`, `mongoose` o `memory`.
 
 ### `jg g clean`
 
@@ -251,6 +253,33 @@ jg g datasource user --orm prisma    # vuelta atrás instantánea
 - Los datasources anteriores se conservan; `jg undo` restaura el composition root previo.
 
 El ORM destino tiene que estar configurado (`jg g <orm>`) y con sus tablas creadas. Al pasar entre Postgres y Mongo cambian los ids (UUID ↔ ObjectId): si usas caché, vacíala. Si editaste el composition root a mano, el cambio lo regenera (lo anterior se recupera con `jg undo`).
+
+### `jg g metrics`
+
+Deja la API monitoreada con Prometheus y Grafana sin escribir código: la app expone `/metrics`, Prometheus la lee cada 15 s y Grafana lo muestra en un dashboard ya armado. **Requiere `jg g express`.**
+
+```bash
+jg g metrics                              # /metrics abierta
+jg g metrics --path /internal/metrics     # otra ruta
+jg g metrics --protect                    # exige Authorization: Bearer <token>
+
+npm run dev
+docker compose up -d prometheus grafana   # Prometheus :9090 · Grafana :3001 (admin / admin)
+```
+
+Qué se mide, sin instrumentar cada función:
+
+- **Peticiones HTTP** (middleware): cantidad, duración y código de respuesta, etiquetadas por el patrón de la ruta (`/api/users/:id`, nunca la URL real, para no crear una serie por id).
+- **Casos de uso** (Decorator `measured`): duración y fallos, sin modificarlos. Si existe el CRUD de usuarios, sus cinco casos de uso se miden automáticamente y `jg g datasource` lo conserva. Para otro caso de uso: `measured(new MiCasoDeUso(...), getMetrics(), 'mi_caso')` en su composition root.
+- **Proceso**: memoria, CPU, event loop.
+
+Cómo queda:
+
+- Dominio: contrato `MetricsService` y el Decorator `measured`. Infraestructura: `PrometheusMetricsService` (Singleton + Adapter sobre `@prometheus-io/client`) y su provider. Presentación: middleware, ruta y un router que se conecta en `app.ts` como primer middleware. Si cambiaste `app.ts` y no encuentra dónde insertarlo, no lo toca y te dice qué línea añadir.
+- `monitoring/`: `prometheus.yml`, datasource y dashboard de Grafana (provisionados, sin configurar nada a mano).
+- `.env`: `METRICS_PATH`, puertos y usuario de Grafana; con `--protect`, `METRICS_TOKEN` (generado, solo en `.env`; en `.env.example` queda vacío).
+
+Con `--protect`, como `prometheus.yml` no lee variables de entorno, la clave también se guarda en `monitoring/prometheus/metrics.token` (añadido al `.gitignore`) y se monta en el contenedor. Prometheus lee la app en `host.docker.internal:<PORT>`: si cambias `PORT`, cámbialo también en `prometheus.yml`.
 
 ## Deshacer cambios
 

@@ -15,7 +15,10 @@
     "typeorm",
     "sequelize",
     "mongoose",
-    "mongodb"
+    "mongodb",
+    "prometheus",
+    "grafana",
+    "metrics"
   ],
   "type": "module",
   "bin": {

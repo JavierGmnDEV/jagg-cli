@@ -37,6 +37,7 @@ function detectFeatures(cwd, srcDir) {
     mongoose: has('infrastructure/data/mongoose/mongoose.client.ts'),
     cacheService: has('domain/api/services/cache.service.ts') && has('infrastructure/api/services/cache.provider.ts'),
     express: has('presentation/http/routes/index.ts'),
+    metrics: has('domain/api/services/metrics.service.ts') && has('infrastructure/api/services/metrics.provider.ts'),
   };
 }
 
@@ -48,10 +49,17 @@ function appendTo(cwd, append, ctx, tracker) {
   if (current.includes(render(append.marker, vars))) return { target, status: 'skipped' };
 
   const content = renderTemplate(append.template, vars);
+  const lines = current.split('\n');
   if (append.position === 'imports') {
-    const lines = current.split('\n');
     const lastImport = lines.findLastIndex((line) => /^import\s.*;\s*$/.test(line));
     lines.splice(lastImport + 1, 0, content.replace(/\n$/, ''));
+    tracker.write(abs, lines.join('\n'));
+  } else if (append.before || append.after) {
+    // Si el usuario cambió esa línea no se adivina dónde insertar: se le pide que lo haga a mano
+    const anchor = append.before ?? append.after;
+    const index = lines.findIndex((line) => line.includes(anchor));
+    if (index === -1) return { target, status: 'skipped', manual: { anchor, content } };
+    lines.splice(append.before ? index : index + 1, 0, content.replace(/\n$/, ''));
     tracker.write(abs, lines.join('\n'));
   } else {
     const separator = current === '' || current.endsWith('\n') ? '' : '\n';
@@ -93,7 +101,8 @@ export async function runGenerator(gen, opts) {
     ...(gen.options ?? []).map(([flags]) => {
       const flag = flags.match(/--([\w-]+)/)[1];
       const value = opts[flag.replace(/-(\w)/g, (_, c) => c.toUpperCase())];
-      return value === undefined ? undefined : `--${flag} ${value}`;
+      if (value === undefined || value === false) return undefined;
+      return value === true ? `--${flag}` : `--${flag} ${value}`;
     }),
   ]
     .filter(Boolean)
@@ -148,8 +157,14 @@ function applyPlan({ cwd, gen, plan, ctx, opts, config, tracker, state }) {
   }
 
   for (const append of plan.appends ?? []) {
-    const { target, status } = appendTo(cwd, append, ctx, tracker);
+    const { target, status, manual } = appendTo(cwd, append, ctx, tracker);
     log.status(status, target);
+    if (manual) {
+      log.warn(
+        `No encontré "${manual.anchor}" en ${target}. Añade a mano, ${append.where ?? 'donde corresponda'}:\n` +
+          manual.content,
+      );
+    }
   }
 
   if (plan.env) {
@@ -159,8 +174,10 @@ function applyPlan({ cwd, gen, plan, ctx, opts, config, tracker, state }) {
   }
 
   if (plan.compose && !opts.skipDocker) {
-    const { fileName, status } = addComposeService(cwd, plan.compose, opts, tracker.write);
-    log.status(status, `${fileName} → services.${plan.compose.name}`);
+    for (const service of [plan.compose].flat()) {
+      const { fileName, status } = addComposeService(cwd, service, opts, tracker.write);
+      log.status(status, `${fileName} → services.${service.name}`);
+    }
   }
 
   if ((plan.dependencies?.length || plan.devDependencies?.length) && !opts.skipInstall) {
